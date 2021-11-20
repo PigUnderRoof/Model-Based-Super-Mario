@@ -37,6 +37,61 @@ class ResizeFrame(Wrapper):
         return resize_frame(self.env.reset(), self.width, self.height)
 
 
+class CustomReward(Wrapper):
+    """
+    Code borrowed from https://github.com/uvipen/Super-mario-bros-PPO-pytorch
+    To make 4-4, 7-4 easier
+    """
+
+    def __init__(self, env):
+        super().__init__(env)
+        self.env = env
+
+        env.reset()
+        _, _, _, info = self.env.step(0)
+        self.world = info['world']
+        self.stage = info['stage']
+        env.reset()
+
+        self.curr_score = 0
+        self.current_x = 40
+
+
+    def step(self, action):
+        state, reward, done, info = self.env.step(action)
+
+        reward += (info["score"] - self.curr_score) / 40.
+        self.curr_score = info["score"]
+        if done:
+            if info["flag_get"]:
+                reward += 50
+            else:
+                reward -= 50
+        if self.world == 7 and self.stage == 4:
+            if (506 <= info["x_pos"] <= 832 and info["y_pos"] > 127) or (
+                    832 < info["x_pos"] <= 1064 and info["y_pos"] < 80) or (
+                    1113 < info["x_pos"] <= 1464 and info["y_pos"] < 191) or (
+                    1579 < info["x_pos"] <= 1943 and info["y_pos"] < 191) or (
+                    1946 < info["x_pos"] <= 1964 and info["y_pos"] >= 191) or (
+                    1984 < info["x_pos"] <= 2060 and (info["y_pos"] >= 191 or info["y_pos"] < 127)) or (
+                    2114 < info["x_pos"] < 2440 and info["y_pos"] < 191) or info["x_pos"] < self.current_x - 500:
+                reward -= 50
+                done = True
+        if self.world == 4 and self.stage == 4:
+            if (info["x_pos"] <= 1500 and info["y_pos"] < 127) or (
+                    1588 <= info["x_pos"] < 2380 and info["y_pos"] >= 127):
+                reward = -50
+                done = True
+
+        self.current_x = info["x_pos"]
+        return state, reward / 10., done, info
+
+    def reset(self) -> Array:
+        self.curr_score = 0
+        self.current_x = 40
+        return self.env.reset()
+
+
 if __name__ == "__main__":
     import sys
     env = gym_super_mario_bros.make('SuperMarioBros-v0')
@@ -51,8 +106,11 @@ if __name__ == "__main__":
     # plt.show()
 
     env = ResizeFrame(env, width=144, height=144)
+    env = CustomReward(env)
 
     frame = env.reset()
     print(frame.shape, sys.getsizeof(frame), frame.nbytes)
-    frame = env.step(0)[0]
+    frame, done, reward, info = env.step(0)
     print(frame.shape, sys.getsizeof(frame), frame.nbytes)
+    # print(info)
+    # print(env.metadata)
