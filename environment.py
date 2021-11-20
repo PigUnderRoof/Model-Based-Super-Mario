@@ -56,7 +56,6 @@ class CustomReward(Wrapper):
         self.curr_score = 0
         self.current_x = 40
 
-
     def step(self, action):
         state, reward, done, info = self.env.step(action)
 
@@ -92,6 +91,34 @@ class CustomReward(Wrapper):
         return self.env.reset()
 
 
+class SKipFrame(Wrapper):
+    def __init__(self, env, skip=4):
+        super().__init__(env)
+        self.env = env
+        self.skip = skip
+
+    def step(self, action: Action) -> Tuple[Array, float, bool, Dict[str, Any]]:
+        total_reward = 0.0
+        states = []
+
+        for i in range(self.skip):
+            state, reward, done, info = self.env.step(action)
+            total_reward += reward
+            states.append(state)
+            
+            if done:
+                while len(states) < self.skip:
+                    states.append(state)
+                break
+
+        states = np.concatenate(states, axis=0)
+        return states, total_reward, done, info
+
+    def reset(self) -> Array:
+        state = self.env.reset()
+        return np.repeat(state, self.skip, axis=0)
+
+
 if __name__ == "__main__":
     import sys
     env = gym_super_mario_bros.make('SuperMarioBros-v0')
@@ -107,6 +134,7 @@ if __name__ == "__main__":
 
     env = ResizeFrame(env, width=144, height=144)
     env = CustomReward(env)
+    env = SKipFrame(env, 4)
 
     frame = env.reset()
     print(frame.shape, sys.getsizeof(frame), frame.nbytes)
