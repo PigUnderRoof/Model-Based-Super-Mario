@@ -94,15 +94,17 @@ class Dynamics(nn.Module):
 
         self.lin1 = nn.Linear(d_in+n_action, d_hidden)
         self.lin2 = nn.Linear(d_hidden, d_in)
+        self.lin3 = nn.Linear(d_hidden, 1)
 
     def forward(self, last_state, last_action):
         action_t = F.one_hot(last_action, num_classes=self.n_action)
         x = torch.cat([last_state, action_t], dim=1)
 
         y = F.relu(self.lin1(x))
-        y = self.lin2(y)
-        y = torch.tanh(y)
-        return y
+        reward_hat = self.lin3(y)
+        h_next_hat = torch.tanh(self.lin2(y))
+
+        return h_next_hat, reward_hat
 
 
 class WorldModel(nn.Module):
@@ -122,14 +124,14 @@ class WorldModel(nn.Module):
 
     def forward(self, x, action):
         bs = x.shape[0]
-        h = self.encoder(x).reshape(bs,-1)
-        h_next_hat = self.dynamics(h, action)
+        h = self.encoder(x).reshape(bs, -1)
+        h_next_hat, reward_hat = self.dynamics(h, action)
 
         n = self.n_world_grid
         d = self.d_conv
-        x_hat = self.decoder(h.reshape(bs,d,n,n))
-        x_next_hat = self.decoder(h_next_hat.reshape(bs,d,n,n))
-        return h, h_next_hat, x_hat, x_next_hat
+        x_hat = self.decoder(h.reshape(bs, d, n, n))
+        x_next_hat = self.decoder(h_next_hat.reshape(bs, d, n, n))
+        return (h, h_next_hat), reward_hat, (x_hat, x_next_hat)
 
 
 class ActorCritic(nn.Module):
