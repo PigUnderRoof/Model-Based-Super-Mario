@@ -105,7 +105,7 @@ class SKipFrame(Wrapper):
             state, reward, done, info = self.env.step(action)
             total_reward += reward
             states.append(state)
-            
+
             if done:
                 while len(states) < self.skip:
                     states.append(state)
@@ -117,6 +117,17 @@ class SKipFrame(Wrapper):
     def reset(self) -> Array:
         state = self.env.reset()
         return np.repeat(state, self.skip, axis=0)
+
+
+def get_mario_env(world: int = 1, stage: int = 1, version: int = 0, skip: int = 4, actions=SIMPLE_MOVEMENT):
+    env = gym_super_mario_bros.make(
+        f'SuperMarioBros-{world}-{stage}-v{version}')
+
+    env = JoypadSpace(env, actions)
+    env = ResizeFrame(env)
+    env = CustomReward(env)
+    env = SKipFrame(env, skip)
+    return env
 
 
 if __name__ == "__main__":
@@ -136,6 +147,7 @@ if __name__ == "__main__":
     env = CustomReward(env)
     env = SKipFrame(env, 4)
 
+    env = get_mario_env()
     frame = env.reset()
     print(frame.shape, sys.getsizeof(frame), frame.nbytes)
     frame, done, reward, info = env.step(0)
